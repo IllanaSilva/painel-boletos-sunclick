@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Painel de Boletos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#0F1117;
+    --bg-secondary:#161B22;
+    --card:#1D222B;
+    --border:#2D333B;
+    --divider:#30363D;
+
+    --green:#46D369;
+    --green-2:#2DB84D;
+    --yellow:#F7B731;
+    --red:#E74C3C;
+    --blue:#3B82F6;
+    --gray:#64748B;
+
+    --text:#E6EDF3;
+    --text-secondary:#8B949E;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    margin:0;
+    padding:32px 24px;
+  }
+  .wrap{max-width:1160px;margin:0 auto;}
+
+  @keyframes fadeUp{
+    from{opacity:0; transform:translateY(6px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  .fade{animation:fadeUp .35s ease both;}
+
+  /* ---------- Header ---------- */
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    padding-bottom:20px;
+    margin-bottom:0;
+  }
+  header h1{margin:0;font-size:32px;font-weight:700;letter-spacing:-.3px;}
+  header .subtitle{margin:6px 0 0;font-size:14px;color:var(--text-secondary);}
+  header .updated{font-size:13px;color:var(--text-secondary);text-align:right;}
+  header .updated b{color:var(--text);font-weight:600;}
+  .hairline{
+    height:2px;
+    background:linear-gradient(90deg, var(--green), transparent 55%);
+    margin-bottom:28px;
+    border-radius:2px;
+  }
+
+  section{margin-bottom:32px;}
+  .section-title{
+    font-size:15px;
+    font-weight:600;
+    color:var(--text);
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .section-title .muted{font-weight:400;color:var(--text-secondary);font-size:13px;}
+
+  /* ---------- Auth ---------- */
+  #authPanel{
+    background:var(--bg-secondary);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px 18px;
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+  #authPanel .loginForm{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  #authPanel input{
+    background:var(--bg);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:13px;
+  }
+  #authPanel .who{font-size:13px;color:var(--text-secondary);}
+  #authPanel .who b{color:var(--text);}
+  #authError{color:var(--red);font-size:12px;}
+  #uploadSection.locked #dropzone, #uploadSection.locked #responsavelRowNote{display:none;}
+  #noAccessMsg{display:none;font-size:13px;color:var(--text-secondary);padding:20px;text-align:center;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;}
+
+  /* ---------- Upload ---------- */
+  #responsavelRow{
+    display:flex; align-items:center; gap:10px; margin-bottom:14px;
+  }
+  #responsavelRow label{font-size:13px;color:var(--text-secondary);}
+  #responsavelInput{
+    background:var(--bg-secondary);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:13px;
+    width:220px;
+  }
+
+  #dropzone{
+    background:var(--bg-secondary);
+    border:1.5px dashed var(--border);
+    border-radius:16px;
+    padding:48px 24px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .2s ease, background .2s ease;
+  }
+  #dropzone:hover, #dropzone.drag{
+    border-color:var(--green);
+    background:#171D14;
+  }
+  #dropzone svg{margin-bottom:14px;opacity:.8;}
+  #dropzone .primary{font-size:15px;font-weight:600;color:var(--text);}
+  #dropzone .secondary{font-size:13px;color:var(--text-secondary);margin-top:4px;}
+  #dropzone .formats{font-size:12px;color:var(--text-secondary);margin-top:10px;}
+  #fileInput{display:none;}
+
+  #lastFileCard{
+    display:none;
+    margin-top:16px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px 18px;
+    align-items:center;
+    gap:14px;
+  }
+  #lastFileCard .check{
+    width:32px;height:32px;border-radius:50%;
+    background:rgba(70,211,105,0.15);
+    color:var(--green);
+    display:flex;align-items:center;justify-content:center;
+    font-size:16px;flex-shrink:0;
+  }
+  #lastFileCard .info b{display:block;font-size:14px;color:var(--text);}
+  #lastFileCard .info span{font-size:12px;color:var(--text-secondary);}
+
+  #confirmPanel{
+    display:none;
+    margin-top:16px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:18px;
+  }
+  #confirmPanel .row{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    margin-bottom:12px; font-size:13px; color:var(--text-secondary);
+  }
+  #confirmPanel .row b{color:var(--text);}
+
+  select{
+    background:var(--bg-secondary);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:13px;
+  }
+
+  .btn{
+    font-family:inherit;
+    font-size:13px;
+    font-weight:600;
+    border:none;
+    border-radius:8px;
+    padding:10px 18px;
+    cursor:pointer;
+    transition:transform .1s ease, background .15s ease;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--green); color:#0B1509;}
+  .btn-primary:hover{background:#5EE07F;}
+  .btn-secondary{background:var(--bg-secondary); color:var(--text); border:1px solid var(--border);}
+  .btn-secondary:hover{border-color:var(--text-secondary);}
+  .btn-danger{background:none; color:var(--red); border:none; font-weight:600; cursor:pointer; font-size:13px;}
+
+  #status{font-size:13px;margin-top:12px;min-height:16px;}
+  #status.err{color:var(--red);}
+  #status.ok{color:var(--green);}
+
+  /* ---------- KPI Cards ---------- */
+  .kpis{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+    gap:24px;
+  }
+  .kpi{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:24px;
+    transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .kpi:hover{
+    transform:translateY(-3px);
+    box-shadow:0 12px 24px rgba(0,0,0,0.35);
+    border-color:var(--divider);
+  }
+  .kpi .icon{
+    width:40px;height:40px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;margin-bottom:16px;
+  }
+  .kpi .kpi-title{font-size:15px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;}
+  .kpi .kpi-value{font-size:40px;font-weight:700;color:var(--text);line-height:1;}
+  .kpi .kpi-desc{font-size:13px;color:var(--text-secondary);margin-top:8px;}
+
+  /* ---------- Charts ---------- */
+  .chart-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:24px;
+  }
+  .chart-box{position:relative;height:300px;}
+
+  /* ---------- Tables ---------- */
+  .table-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:8px 4px 4px;
+    overflow-x:auto;
+  }
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px;}
+  th{
+    text-align:left;
+    padding:14px 16px;
+    color:var(--text-secondary);
+    font-size:11px;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    border-bottom:1px solid var(--divider);
+  }
+  td{
+    padding:14px 16px;
+    border-bottom:1px solid var(--border);
+    color:var(--text);
+  }
+  tbody tr{transition:background .12s ease;}
+  tbody tr:hover td{background:var(--bg-secondary);}
+  tbody tr:last-child td{border-bottom:none;}
+  td.muted{color:var(--text-secondary);}
+
+  .badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:600;
+  }
+  .badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
+  .badge.success{background:rgba(70,211,105,.12); color:var(--green);}
+  .badge.warning{background:rgba(247,183,49,.12); color:var(--yellow);}
+  .badge.error{background:rgba(231,76,60,.12); color:var(--red);}
+  .badge.info{background:rgba(59,130,246,.12); color:var(--blue);}
+  .badge.neutral{background:rgba(100,116,139,.12); color:var(--gray);}
+
+  .link-btn{
+    background:none;border:1px solid var(--border);color:var(--text-secondary);
+    padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600;
+  }
+  .link-btn:hover{border-color:var(--blue); color:var(--blue);}
+
+  .empty{text-align:center;color:var(--text-secondary);padding:36px 10px;font-size:14px;}
+
+  .footer-actions{display:flex;justify-content:flex-end;padding:12px 12px 4px;}
+  .footnote{font-size:12px;color:var(--text-secondary);text-align:center;margin-top:8px;}
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    display:none;
+    position:fixed;inset:0;
+    background:rgba(0,0,0,.55);
+    align-items:center;justify-content:center;
+    z-index:50;
+  }
+  .modal{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:24px;
+    width:min(480px, 90vw);
+    max-height:80vh;
+    overflow-y:auto;
+    animation:fadeUp .2s ease both;
+  }
+  .modal h3{margin:0 0 4px;font-size:17px;}
+  .modal .modal-sub{font-size:12px;color:var(--text-secondary);margin-bottom:16px;}
+  .modal table{min-width:unset;}
+  .modal-actions{display:flex;justify-content:space-between;margin-top:18px;}
+  .modal-close{background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;line-height:1;}
+
+  @media (max-width:720px){
+    header{flex-direction:column;align-items:flex-start;gap:8px;}
+    header .updated{text-align:left;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="fade">
+    <div>
+      <h1>Painel de Boletos</h1>
+      <p class="subtitle">Conciliação Automática de Boletos</p>
+    </div>
+    <div class="updated">Última atualização:<br><b id="lastUpdated">—</b></div>
+  </header>
+  <div class="hairline"></div>
+
+  <section class="fade">
+    <div class="section-title">🗂 Enviar planilha</div>
+
+    <div id="authPanel">
+      <div id="loginForm" class="loginForm">
+        <input type="email" id="loginEmail" placeholder="seu.email@igreenenergy.com.br">
+        <input type="password" id="loginPassword" placeholder="senha">
+        <button class="btn btn-secondary" id="loginBtn">Entrar</button>
+        <span id="authError"></span>
+      </div>
+      <div id="loggedInfo" class="who" style="display:none;">
+        Logado como <b id="loggedEmail"></b>
+        <button class="btn btn-secondary" id="logoutBtn" style="margin-left:10px;">Sair</button>
+      </div>
+    </div>
+
+    <div id="uploadSection" class="locked">
+      <div id="dropzone">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 3v12m0-12l-4 4m4-4l4 4M5 17v2a2 2 0 002 2h10a2 2 0 002-2v-2" stroke="#46D369" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="primary">Arraste sua planilha aqui</div>
+        <div class="secondary">ou clique para selecionar</div>
+        <div class="formats">.xlsx · .xls · .csv</div>
+      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    </div>
+
+    <div id="noAccessMsg">Sua conta está logada, mas não tem permissão para enviar arquivos. Fale com a Illana se precisar de acesso.</div>
+
+    <div id="lastFileCard">
+      <div class="check">✔</div>
+      <div class="info">
+        <b id="lastFileName">—</b>
+        <span id="lastFileMeta">—</span>
+      </div>
+    </div>
+
+    <div id="confirmPanel">
+      <div class="row"><span>Aba:</span> <select id="sheetSelect"></select></div>
+      <div class="row"><span>Coluna de ações:</span> <select id="columnSelect"></select> <span id="headerRowInfo"></span></div>
+      <button class="btn btn-primary" id="confirmBtn">Processar</button>
+    </div>
+
+    <div id="status"></div>
+  </section>
+
+  <section class="fade">
+    <div class="section-title">📈 Indicadores</div>
+    <div class="kpis" id="kpiWrap"></div>
+  </section>
+
+  <section class="fade">
+    <div class="section-title">Evolução por envio <span class="muted">— últimos envios processados</span></div>
+    <div class="chart-card"><div class="chart-box"><canvas id="trendChart"></canvas></div></div>
+  </section>
+
+  <section class="fade">
+    <div class="section-title">Distribuição — último envio <span class="muted">quantidade por ação</span></div>
+    <div class="chart-card"><div class="chart-box"><canvas id="barChart"></canvas></div></div>
+  </section>
+
+  <section class="fade">
+    <div class="section-title">⏱ Últimos arquivos</div>
+    <div class="table-card">
+      <div id="historyWrap"><div class="empty">Nenhum envio ainda. Suba uma base para começar.</div></div>
+      <div class="footer-actions">
+        <button class="btn-danger" id="clearHistoryBtn" style="display:none;">Limpar histórico</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="fade">
+    <div class="section-title">⚠ Ações pendentes <span class="muted">detalhamento do último envio</span></div>
+    <div class="table-card">
+      <div id="pendingWrap"><div class="empty">Sem dados ainda.</div></div>
+    </div>
+  </section>
+
+  <p class="footnote">Dados de histórico são compartilhados entre todas as pessoas que acessam este painel.</p>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <h3 id="modalTitle">Envio</h3>
+    <div class="modal-sub" id="modalSub"></div>
+    <table><tbody id="modalTableBody"></tbody></table>
+    <div class="modal-actions">
+      <button class="btn-danger" id="modalDeleteBtn">Remover este envio</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'boletos-dashboard';
+const SUPPLIERS = ['COTESA','SUNCLICK','THOPEN','MOVE','VANTAGE','FARO','REENERGISA','BOM FUTURO'];
+const ALLOWED_UPLOADERS = ['illana.silva@igreenenergy.com.br','leonardo.silva@igreenenergy.com.br'];
+
+// ===== CONFIGURAÇÃO DO PROJETO FIREBASE (Painel boletos Sunclick) =====
+const firebaseConfig = {
+  apiKey: "AIzaSyDjaiHhSLs7QUaifKC5y0CtAO9ecUb-wcg",
+  authDomain: "boletos-sunclick.firebaseapp.com",
+  projectId: "boletos-sunclick",
+  storageBucket: "boletos-sunclick.firebasestorage.app",
+  messagingSenderId: "536251499205",
+  appId: "1:536251499205:web:c931ad35dbdfced0e7a6ac"
+};
+// ================================================================
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let currentUser = null;
+let isUploader = false;
+
+const authError = document.getElementById('authError');
+const loginForm = document.getElementById('loginForm');
+const loggedInfo = document.getElementById('loggedInfo');
+const uploadSection = document.getElementById('uploadSection');
+const noAccessMsg = document.getElementById('noAccessMsg');
+
+document.getElementById('loginBtn').addEventListener('click', () => {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPassword').value;
+  authError.textContent = '';
+  auth.signInWithEmailAndPassword(email, pass).catch(err => {
+    authError.textContent = 'Não consegui entrar: verifique e-mail e senha.';
+    console.error(err);
+  });
+});
+document.getElementById('logoutBtn').addEventListener('click', () => auth.signOut());
+
+auth.onAuthStateChanged(user => {
+  currentUser = user;
+  isUploader = !!(user && ALLOWED_UPLOADERS.includes(user.email));
+
+  loginForm.style.display = user ? 'none' : 'flex';
+  loggedInfo.style.display = user ? 'block' : 'none';
+  if (user) document.getElementById('loggedEmail').textContent = user.email;
+
+  uploadSection.classList.toggle('locked', !isUploader);
+  noAccessMsg.style.display = (user && !isUploader) ? 'block' : 'none';
+});
+
+let history = [];
+let trendChart, barChart;
+
+let pendingWorkbook = null;
+let pendingFilename = null;
+let pendingAoa = null;
+let pendingHeaderRowIdx = 0;
+let pendingHeaders = [];
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const statusEl = document.getElementById('status');
+const confirmPanel = document.getElementById('confirmPanel');
+const sheetSelect = document.getElementById('sheetSelect');
+const columnSelect = document.getElementById('columnSelect');
+const headerRowInfo = document.getElementById('headerRowInfo');
+
+function setStatus(msg, type){
+  statusEl.textContent = msg;
+  statusEl.className = type || '';
+}
+
+function normalize(s){
+  return String(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+
+function excelColLetter(idx){
+  let s=''; idx+=1;
+  while(idx>0){ const m=(idx-1)%26; s=String.fromCharCode(65+m)+s; idx=Math.floor((idx-1)/26); }
+  return s;
+}
+
+function classify(label){
+  const n = normalize(label);
+  if (/cancel/.test(n)) return {type:'error', color:'#E74C3C', icon:'⚠'};
+  if (/pend|aguard|verificar|analise|rascunho/.test(n)) return {type:'warning', color:'#F7B731', icon:'⚠'};
+  if (/reemit/.test(n)) return {type:'info', color:'#3B82F6', icon:'🔄'};
+  if (/import|subiu|inclus|novo/.test(n)) return {type:'info', color:'#3B82F6', icon:'⬆'};
+  if (/pago|valid|sucesso|finaliz|baixa/.test(n)) return {type:'success', color:'#46D369', icon:'✔'};
+  if (/venc/.test(n)) return {type:'warning', color:'#F7B731', icon:'⏱'};
+  if (n === '(vazio)') return {type:'neutral', color:'#64748B', icon:'📄'};
+  return {type:'neutral', color:'#64748B', icon:'📄'};
+}
+
+function detectSupplier(text){
+  const n = normalize(text);
+  const found = SUPPLIERS.find(s => n.includes(normalize(s)));
+  return found || '—';
+}
+
+function fmtDate(iso){
+  return new Date(iso).toLocaleDateString('pt-BR');
+}
+function fmtDateTime(iso){
+  return new Date(iso).toLocaleString('pt-BR');
+}
+
+/* ---------- Upload flow ---------- */
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+function handleFile(file){
+  setStatus('Lendo arquivo...', '');
+  confirmPanel.style.display = 'none';
+  pendingFilename = file.name;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const data = new Uint8Array(e.target.result);
+      pendingWorkbook = XLSX.read(data, {type:'array'});
+      if (!pendingWorkbook.SheetNames.length){
+        setStatus('Não encontrei nenhuma aba nesse arquivo.', 'err');
+        return;
+      }
+      sheetSelect.innerHTML = pendingWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
+      loadSheet(pendingWorkbook.SheetNames[0]);
+      confirmPanel.style.display = 'block';
+      setStatus('Confira a aba e a coluna de ações antes de processar.', '');
+    }catch(err){
+      console.error(err);
+      setStatus('Não consegui ler esse arquivo. Verifique se é um .xlsx, .xls ou .csv válido.', 'err');
+    }
+  };
+  reader.onerror = () => setStatus('Erro ao ler o arquivo.', 'err');
+  reader.readAsArrayBuffer(file);
+}
+
+sheetSelect.addEventListener('change', () => loadSheet(sheetSelect.value));
+
+function findHeaderRow(aoa){
+  const limit = Math.min(aoa.length, 60);
+  for (let i=0;i<limit;i++){
+    const row = aoa[i] || [];
+    const filled = row.filter(c => c!=='' && c!==null && c!==undefined).length;
+    const dVal = row[3];
+    if (filled>=5 && typeof dVal==='string' && dVal.trim()!==''){
+      return i;
+    }
+  }
+  return 0;
+}
+
+function loadSheet(sheetName){
+  const sheet = pendingWorkbook.Sheets[sheetName];
+  const aoa = XLSX.utils.sheet_to_json(sheet, {header:1, defval:'', raw:false});
+  pendingAoa = aoa;
+  pendingHeaderRowIdx = findHeaderRow(aoa);
+  const headerRow = aoa[pendingHeaderRowIdx] || [];
+  pendingHeaders = headerRow.map((h,i) => (h && String(h).trim()) ? String(h).trim() : `Coluna ${excelColLetter(i)}`);
+  columnSelect.innerHTML = pendingHeaders.map((h,i) => `<option value="${i}">${h} (${excelColLetter(i)})</option>`).join('');
+  if (pendingHeaders.length > 3) columnSelect.value = '3';
+  headerRowInfo.textContent = `cabeçalho na linha ${pendingHeaderRowIdx+1}`;
+}
+
+document.getElementById('confirmBtn').addEventListener('click', () => {
+  const colIdx = parseInt(columnSelect.value, 10);
+  const colLabel = pendingHeaders[colIdx];
+  const sheetName = sheetSelect.value;
+  processColumn(colIdx, colLabel, sheetName);
+});
+
+function processColumn(colIdx, colLabel, sheetName){
+  if (!isUploader){
+    setStatus('Você precisa estar logado com uma conta autorizada para enviar arquivos.', 'err');
+    return;
+  }
+  const dataRows = pendingAoa.slice(pendingHeaderRowIdx + 1);
+  const counts = {};
+  let total = 0;
+  dataRows.forEach(row => {
+    const isEmpty = !row || row.every(c => c==='' || c===null || c===undefined);
+    if (isEmpty) return;
+    const raw = String((row[colIdx] ?? '')).trim();
+    const key = raw || '(vazio)';
+    counts[key] = (counts[key]||0)+1;
+    total += 1;
+  });
+
+  const entry = {
+    date: new Date().toISOString(),
+    filename: pendingFilename,
+    sheetName,
+    actionColumn: colLabel,
+    counts,
+    total,
+    responsavel: currentUser.email,
+    fornecedor: detectSupplier(pendingFilename + ' ' + sheetName)
+  };
+
+  setStatus('Salvando...', '');
+  saveEntry(entry).then(() => {
+    confirmPanel.style.display = 'none';
+    fileInput.value = '';
+    setStatus(`Processado: ${pendingFilename} — aba "${sheetName}" (${total} boletos).`, 'ok');
+    document.getElementById('lastFileCard').style.display = 'flex';
+    document.getElementById('lastFileName').textContent = entry.filename;
+    document.getElementById('lastFileMeta').textContent = `${entry.total} boletos · ${fmtDateTime(entry.date)}`;
+  }).catch(err => {
+    console.error(err);
+    setStatus('Erro ao salvar no Firestore. Verifique as regras de acesso e a configuração.', 'err');
+  });
+}
+
+/* ---------- Persistence (Firestore) ---------- */
+function startListening(){
+  db.collection('uploads').orderBy('date').onSnapshot(snap => {
+    history = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  }, err => {
+    console.error(err);
+    setStatus('Não consegui carregar os dados do Firestore. Verifique a configuração.', 'err');
+  });
+}
+
+async function saveEntry(entry){
+  await db.collection('uploads').add(entry);
+}
+async function deleteEntry(id){
+  await db.collection('uploads').doc(id).delete();
+  closeModal();
+}
+async function clearHistory(){
+  if (!confirm('Isso vai apagar TODO o histórico compartilhado. Confirma?')) return;
+  const batch = db.batch();
+  const snap = await db.collection('uploads').get();
+  snap.docs.forEach(d => batch.delete(d.ref));
+  await batch.commit();
+}
+document.getElementById('clearHistoryBtn').addEventListener('click', clearHistory);
+
+function sortedCounts(counts){
+  return Object.entries(counts).sort((a,b) => b[1]-a[1]);
+}
+
+/* ---------- Render ---------- */
+function render(){
+  const last = history[history.length-1];
+  document.getElementById('lastUpdated').textContent = last ? fmtDateTime(last.date) : '—';
+  renderKpis(last);
+  renderTrendChart();
+  renderBarChart(last);
+  renderHistoryTable();
+  renderPendingTable(last);
+}
+
+function renderKpis(last){
+  const wrap = document.getElementById('kpiWrap');
+  const totalCard = `
+    <div class="kpi">
+      <div class="icon" style="background:rgba(100,116,139,.15); color:var(--gray);">📄</div>
+      <div class="kpi-title">Total de Boletos</div>
+      <div class="kpi-value">${last ? last.total.toLocaleString('pt-BR') : '–'}</div>
+      <div class="kpi-desc">Último envio</div>
+    </div>`;
+
+  if (!last){ wrap.innerHTML = totalCard; return; }
+
+  const entries = sortedCounts(last.counts);
+  const cards = entries.map(([label,count]) => {
+    const c = classify(label);
+    return `
+    <div class="kpi">
+      <div class="icon" style="background:${c.color}22; color:${c.color};">${c.icon}</div>
+      <div class="kpi-title" title="${label}">${label}</div>
+      <div class="kpi-value">${count.toLocaleString('pt-BR')}</div>
+      <div class="kpi-desc">${((count/last.total)*100).toFixed(1)}% do total</div>
+    </div>`;
+  }).join('');
+
+  wrap.innerHTML = totalCard + cards;
+}
+
+function renderTrendChart(){
+  const ctx = document.getElementById('trendChart');
+  const allCounts = {};
+  history.forEach(h => Object.entries(h.counts).forEach(([k,v]) => { allCounts[k] = (allCounts[k]||0)+v; }));
+  const topCategories = Object.entries(allCounts).sort((a,b)=>b[1]-a[1]).slice(0,5).map(e=>e[0]);
+
+  const labels = history.map((h,i) => `#${i+1} ${fmtDate(h.date)}`);
+  const datasets = topCategories.map(cat => ({
+    label: cat,
+    data: history.map(h => h.counts[cat] || 0),
+    backgroundColor: classify(cat).color,
+    borderRadius: 4,
+    maxBarThickness: 28
+  }));
+
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(ctx, {
+    type:'bar',
+    data:{labels, datasets},
+    options:{
+      maintainAspectRatio:false,
+      scales:{
+        x:{ ticks:{color:'#8B949E', font:{size:11}}, grid:{color:'#2D333B'} },
+        y:{ beginAtZero:true, ticks:{color:'#8B949E', precision:0, font:{size:11}}, grid:{color:'#2D333B'} }
+      },
+      plugins:{ legend:{ position:'bottom', labels:{color:'#E6EDF3', boxWidth:10, font:{size:11}} } }
+    }
+  });
+}
+
+function renderBarChart(last){
+  const ctx = document.getElementById('barChart');
+  const entries = last ? sortedCounts(last.counts) : [];
+  if (barChart) barChart.destroy();
+  barChart = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: entries.map(e=>e[0]),
+      datasets:[{
+        data: entries.map(e=>e[1]),
+        backgroundColor: entries.map(e=>classify(e[0]).color),
+        borderRadius:6,
+        maxBarThickness:26
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      maintainAspectRatio:false,
+      scales:{
+        x:{ beginAtZero:true, ticks:{color:'#8B949E', precision:0, font:{size:11}}, grid:{color:'#2D333B'} },
+        y:{ ticks:{color:'#E6EDF3', font:{size:12}}, grid:{display:false} }
+      },
+      plugins:{ legend:{display:false} }
+    }
+  });
+}
+
+function renderHistoryTable(){
+  const wrap = document.getElementById('historyWrap');
+  const clearBtn = document.getElementById('clearHistoryBtn');
+  if (!history.length){
+    wrap.innerHTML = '<div class="empty">Nenhum envio ainda. Suba uma base para começar.</div>';
+    clearBtn.style.display = 'none';
+    return;
+  }
+  clearBtn.style.display = 'inline-block';
+  const rows = history.slice().reverse().map(h => `
+    <tr>
+      <td>${h.fornecedor}</td>
+      <td>${h.filename}<br><span class="muted" style="font-size:11px;">${h.sheetName} · ${h.actionColumn}</span></td>
+      <td>${h.total.toLocaleString('pt-BR')}</td>
+      <td class="muted">${fmtDateTime(h.date)}</td>
+      <td><span class="badge success">Processado</span></td>
+      <td>${h.responsavel}</td>
+      <td><button class="link-btn" onclick="openModal('${h.id}')">Visualizar</button></td>
+    </tr>
+  `).join('');
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>Fornecedor</th><th>Arquivo</th><th>Quantidade</th><th>Data</th><th>Status</th><th>Responsável</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderPendingTable(last){
+  const wrap = document.getElementById('pendingWrap');
+  if (!last){ wrap.innerHTML = '<div class="empty">Sem dados ainda.</div>'; return; }
+  const entries = sortedCounts(last.counts);
+  const rows = entries.map(([label,count]) => {
+    const c = classify(label);
+    const pct = ((count/last.total)*100).toFixed(1);
+    return `
+    <tr>
+      <td>${label}</td>
+      <td>${count.toLocaleString('pt-BR')}</td>
+      <td class="muted">${pct}%</td>
+      <td><span class="badge ${c.type}">${c.type}</span></td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `
+    <table>
+      <thead><tr><th>Ação</th><th>Quantidade</th><th>% do total</th><th>Tipo</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+/* ---------- Modal ---------- */
+const modalOverlay = document.getElementById('modalOverlay');
+function openModal(id){
+  const entry = history.find(h => h.id === id);
+  if (!entry) return;
+  document.getElementById('modalTitle').textContent = entry.filename;
+  document.getElementById('modalSub').textContent = `${entry.fornecedor} · ${entry.sheetName} · ${fmtDateTime(entry.date)} · enviado por ${entry.responsavel}`;
+  const rows = sortedCounts(entry.counts).map(([k,v]) => `<tr><td>${k}</td><td style="text-align:right;">${v}</td></tr>`).join('');
+  document.getElementById('modalTableBody').innerHTML = rows + `<tr><td style="font-weight:600;">Total</td><td style="text-align:right;font-weight:600;">${entry.total}</td></tr>`;
+  document.getElementById('modalDeleteBtn').onclick = () => {
+    if (confirm('Remover este envio do histórico?')) deleteEntry(id);
+  };
+  modalOverlay.style.display = 'flex';
+}
+function closeModal(){ modalOverlay.style.display = 'none'; }
+document.getElementById('modalClose').addEventListener('click', closeModal);
+modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+
+startListening();
+</script>
+</body>
+</html>
